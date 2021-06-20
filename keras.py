@@ -16,8 +16,10 @@ from numpy import loadtxt
 from tensorflow.keras.layers import Dense
 from tensorflow.keras import Sequential
 from tensorflow.keras import backend as K
+import random
+from random import shuffle
 
-model = Doc2Vec.load('./spamModel.d2v')
+model = Doc2Vec.load('./doc2vecModel.d2v')
 
 stopWordsEnglish = stopwords.words('english')
 
@@ -58,24 +60,52 @@ df['without_stopwords'] = df['token'].apply(lambda x: [item.lower() for item in 
 allEmailClean = df['without_stopwords'].apply(lambda x: ' '.join(x)) # concat sentences 
 sentences = df['without_stopwords'] # separated tokens
 
+shuffleTemp = list(zip(sentences, allLabel))
+random.shuffle(shuffleTemp)
+sentences , allLabel = zip(*shuffleTemp)
+
+
 inferred_embedding =[]
 for i in range(len(sentences)):
     inferred_embedding.append(model.infer_vector(sentences[i]))
 
 print(inferred_embedding[0])
 
+def recall_m(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
+    recall = true_positives / (possible_positives + K.epsilon())
+    return recall
+
+
+def precision_m(y_true, y_pred):
+    true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
+    predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
+    precision = true_positives / (predicted_positives + K.epsilon())
+    return precision
+
+
+def f1_m(y_true, y_pred):
+    precision = precision_m(y_true, y_pred)
+    recall = recall_m(y_true, y_pred)
+    return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
+
 model = Sequential()
 model.add(Dense(12, input_dim=100, activation='sigmoid'))
 model.add(Dense(8, activation='relu'))
 model.add(Dense(1, activation='sigmoid'))
 
-model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy'])
+model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', f1_m, precision_m, recall_m])
 
 [X_train, X_test, Y_train, Y_test] = splitTrainTest(75, inferred_embedding, allLabel)
 
-print(len(X_train))
-print(len(Y_train))
+print(len(X_test))
+print(len(Y_test))
 
-model.fit(numpy.array(X_train), numpy.array(Y_train), epochs=10, batch_size=20)
+model.fit(numpy.array(X_train), 
+          numpy.array(Y_train), 
+          epochs=10, 
+          batch_size=20,
+          validation_data=(numpy.array(X_test), numpy.array(Y_test)))
 
 model.save('./kerasModel')
