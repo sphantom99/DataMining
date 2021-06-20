@@ -41,7 +41,7 @@ sentences = df['without_stopwords'] # separated tokens
 model = Doc2Vec(min_count=1, window=10, vector_size=100, sample=1e-4, negative=5, workers=7)
 
 for i in range(len(sentences)):
-    training.append(TaggedDocument(words=sentences[i], tags=[allLabel[i]]))
+    training.append(TaggedDocument(words=sentences[i], tags=[i]))
 
 model.build_vocab(training)
 
@@ -50,4 +50,4 @@ for epoch in range(10):
     model.train(training,
                 total_examples=model.corpus_count,
                 epochs=model.epochs)
-model.save('./spamModel.d2v')
+model.save('./doc2vecModel.d2v')
