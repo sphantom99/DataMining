@@ -17,7 +17,7 @@ training = []
 # Convert emails to strings
 df['stringEmail'] = df['email'].astype(str)
 # Replace unencoded values
-df['stringEmail'].replace(regex=r'\\', value='')
+#df['stringEmail'].replace(regex=r'\\', value='')
 # Tokenize email 
 df['token'] = df['stringEmail'].apply(word_tokenize)
 # Remove stopwords
