@@ -1,36 +1,14 @@
 from gensim.models import Doc2Vec
-import nltk
-from nltk.corpus import brown
 import numpy
-from gensim.models import Word2Vec
-import multiprocessing
-import sys
-from gensim.models.doc2vec import TaggedDocument
 from nltk.tokenize import word_tokenize
-from nltk.tokenize import sent_tokenize
 import pandas as pd
 from nltk.corpus import stopwords
-from sklearn.feature_extraction.text import TfidfVectorizer
-from gensim.models import Word2Vec
-from numpy import loadtxt
 from tensorflow.keras.layers import Dense
 from tensorflow.keras import Sequential
 from tensorflow.keras import backend as K
 import random
-from random import shuffle
-
 model = Doc2Vec.load('./doc2vecModel.d2v')
-
 stopWordsEnglish = stopwords.words('english')
-
-
-def splitTrainTest(percentage, X, Y):
-    lengthOfTrain = int((percentage*len(X))/100)
-    X_train = X[:lengthOfTrain]
-    Y_train = Y[:lengthOfTrain]
-    X_test = X[lengthOfTrain:]
-    Y_test = Y[lengthOfTrain:]
-    return X_train, X_test, Y_train, Y_test
 
 df = pd.read_csv('./spam_or_not_spam/spam_or_not_spam.csv', encoding='utf8')
 
@@ -38,8 +16,6 @@ df = pd.read_csv('./spam_or_not_spam/spam_or_not_spam.csv', encoding='utf8')
 allEmail = df.email
 allLabel = df.label
 sentences = ['' for x in range(len(allEmail))]
-vectorizedEmail = ['' for x in range(len(allEmail))]
-training = []
 
 def splitTrainTest(percentage, X, Y):
     lengthOfTrain = int((percentage*len(X))/100)
@@ -55,52 +31,59 @@ df['stringEmail'] = df['email'].astype(str)
 df['token'] = df['stringEmail'].apply(word_tokenize)
 # Remove stopwords
 df['without_stopwords'] = df['token'].apply(lambda x: [item.lower() for item in x if item.lower() not in stopWordsEnglish])
-# Join email tokens
 
-allEmailClean = df['without_stopwords'].apply(lambda x: ' '.join(x)) # concat sentences 
 sentences = df['without_stopwords'] # separated tokens
-
+# Shuffle dataset so it is more random,
+# Both columns are shuffled
 shuffleTemp = list(zip(sentences, allLabel))
 random.shuffle(shuffleTemp)
 sentences , allLabel = zip(*shuffleTemp)
 
-
+# Imported doc2vec model, and converted tokenized email into vectors
 inferred_embedding =[]
 for i in range(len(sentences)):
     inferred_embedding.append(model.infer_vector(sentences[i]))
 
-print(inferred_embedding[0])
+def splitTrainTest(percentage, X, Y):
+    lengthOfTrain = int((percentage*len(X))/100)
+    X_train = X[:lengthOfTrain]
+    Y_train = Y[:lengthOfTrain]
+    X_test = X[lengthOfTrain:]
+    Y_test = Y[lengthOfTrain:]
+    return X_train, X_test, Y_train, Y_test
 
-def recall_m(y_true, y_pred):
+def recall_metric(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     possible_positives = K.sum(K.round(K.clip(y_true, 0, 1)))
     recall = true_positives / (possible_positives + K.epsilon())
     return recall
 
 
-def precision_m(y_true, y_pred):
+def precision_metric(y_true, y_pred):
     true_positives = K.sum(K.round(K.clip(y_true * y_pred, 0, 1)))
     predicted_positives = K.sum(K.round(K.clip(y_pred, 0, 1)))
     precision = true_positives / (predicted_positives + K.epsilon())
     return precision
 
 
-def f1_m(y_true, y_pred):
-    precision = precision_m(y_true, y_pred)
-    recall = recall_m(y_true, y_pred)
+def f1_metric(y_true, y_pred):
+    precision = precision_metric(y_true, y_pred)
+    recall = recall_metric(y_true, y_pred)
     return 2 * ((precision * recall) / (precision + recall + K.epsilon()))
 
 model = Sequential()
-model.add(Dense(12, input_dim=100, activation='sigmoid'))
-model.add(Dense(8, activation='relu'))
+model.add(Dense(14, input_dim=100, activation='relu'))
+model.add(Dense(10, activation='relu'))
 model.add(Dense(1, activation='sigmoid'))
 
-model.compile(loss='binary_crossentropy', optimizer='adam', metrics=['accuracy', f1_m, precision_m, recall_m])
+model.compile(loss='binary_crossentropy', 
+              optimizer='adam', 
+              metrics=['accuracy', 
+                       f1_metric, 
+                       precision_metric, 
+                       recall_metric])
 
 [X_train, X_test, Y_train, Y_test] = splitTrainTest(75, inferred_embedding, allLabel)
-
-print(len(X_test))
-print(len(Y_test))
 
 model.fit(numpy.array(X_train), 
           numpy.array(Y_train), 
